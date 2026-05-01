@@ -201,6 +201,50 @@ Resources:
              Resource: "*"
 ```
 
+### Dynamic References
+Dynamic references provide a compact, powerful way for you to reference external values that are supplied at runtime. They are critical for securely injecting secrets or fetching configuration data without hardcoding them in the template.
+
+Common dynamic reference patterns:
+- **[[AWS Systems Manager Parameter Store]] (SSM):** Fetch configuration values securely.
+  `'{{resolve:ssm:parameter-name:version}}'`
+- **SSM Secure String:** Fetch encrypted configuration values (supported only for specific resources).
+  `'{{resolve:ssm-secure:parameter-name:version}}'`
+- **[[AWS Secrets Manager]]:** Fetch passwords, API keys, or dynamically generated secrets.
+  `'{{resolve:secretsmanager:secret-id:secret-string:json-key:version-stage:version-id}}'`
+
+*Example Use Case:* Using AWS Secrets Manager to dynamically inject a database password into an RDS instance, while simultaneously configuring the RDS instance to automatically generate and manage that password:
+
+```yaml
+Resources:
+  MyDatabaseSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: "MyDatabaseSecret"
+      GenerateSecretString:
+        SecretStringTemplate: '{"username": "admin"}'
+        PasswordLength: 16
+        GenerateStringKey: "password"
+        ExcludeCharacters: "\"@/\\\""
+
+  MyDBInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      Engine: mysql
+      AllocatedStorage: 20
+      DBInstanceClass: db.t3.micro
+      MasterUsername: "{{resolve:secretsmanager:MyDatabaseSecret:SecretString:username}}" 
+      MasterUserPassword: "{{resolve:secretsmanager:MyDatabaseSecret:SecretString:password}}"      
+
+  # Attaches the DB details back to the secret (useful for rotation)
+  SecretRDSAttachment:
+    Type: AWS::SecretsManager::SecretTargetAttachment
+    Properties: 
+      SecretId: !Ref MyDatabaseSecret  
+      TargetId: !Ref MyDBInstance   
+      TargetType: AWS::RDS::DBInstance
+```
+*(Note: As an alternative to `resolve:secretsmanager`, you can set `ManageMasterUserPassword: true` directly on `AWS::RDS::DBCluster` or `AWS::RDS::DBInstance` to have RDS auto-create and manage the secret for you.)*
+
 ## Exam Tips
 - **StackUpdates:** When you update a stack, understand the interruption behavior of the resources (e.g., `No Interruption`, `Some Interruption`, or `Replacement`). 
 - **Change Sets:** Always use Change Sets to preview how proposed changes to a stack might impact your running resources before applying them.
