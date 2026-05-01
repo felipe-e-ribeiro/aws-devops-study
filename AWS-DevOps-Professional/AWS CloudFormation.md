@@ -95,6 +95,112 @@ Intrinsic functions in CloudFormation help you assign values to properties that 
 - **`!Length` (Fn::Length):** Returns the number of elements within an array/list (replaces the incorrect assumption of `!Cout`).
 - **`!Contains` (Fn::Contains):** Evaluates if a list contains a specific value.
 
+## Advanced Features
+
+### Rollbacks
+CloudFormation automatically handles errors during stack operations. There are three main rollback behaviors:
+- **Stack Creation Failure:** If a stack fails to create, CloudFormation automatically rolls back and deletes the resources created up to that point.
+- **Stack Update Failure:** If a stack update fails, CloudFormation rolls back the stack to its previous known-good state.
+- **Manual Rollback:** In cases where an update fails and automatic rollback is paused or fails, you can trigger a rollback manually.
+
+### Service Role
+By default, CloudFormation uses the permissions of the IAM user executing the stack operations. You can specify an **IAM Service Role** that CloudFormation assumes to create, update, or delete resources, allowing you to decouple user permissions from stack permissions.
+
+### Capabilities
+When a template contains resources that affect permissions or advanced capabilities, you must explicitly acknowledge them during stack creation/update:
+- `CAPABILITY_IAM`: Acknowledges that the template will create or modify IAM resources (with auto-generated names).
+- `CAPABILITY_NAMED_IAM`: Acknowledges that the template will create IAM resources with custom, specific names.
+- `CAPABILITY_AUTO_EXPAND`: Required when the template uses macros (e.g., AWS SAM) or nested stacks that require expansion before processing.
+
+### Deletion Policies
+The `DeletionPolicy` attribute dictates what happens to a resource when the stack is deleted or when the resource is removed from the template:
+- **Delete:** (Default) The resource is deleted. *Note: For Amazon S3 buckets, deletion will fail if the bucket is not empty.*
+- **Retain:** The resource is kept in AWS, even though it's removed from CloudFormation's management.
+- **Snapshot:** Creates a backup snapshot before deleting the resource (supported by resources like Amazon RDS, EBS, and ElastiCache).
+
+### Stack Policies
+A Stack Policy is a JSON document that defines what update actions can be performed on designated resources. This is crucial for protecting critical resources (like production databases) from unintentional updates or replacements during a stack update.
+
+### Termination Protection
+Termination Protection prevents a stack from being accidentally deleted. When enabled, any attempt to delete the stack via the console, CLI, or API will fail until the protection is explicitly disabled.
+
+### Custom Resources
+Custom Resources (`Custom::MyResource` or `AWS::CloudFormation::CustomResource`) allow you to write custom provisioning logic in templates that CloudFormation runs anytime you create, update, or delete stacks. They are commonly backed by [[AWS Lambda]] functions or [[Amazon SNS]] topics. 
+
+*Example Use Case:* A Custom Resource backed by a Lambda function triggered during stack deletion to automatically empty an S3 bucket, ensuring the bucket can be deleted successfully.
+
+```yaml
+Parameters:
+  S3BucketName:
+    Type: String
+    AllowedPattern: "[a-zA-Z][a-zA-Z0-9_-]*"
+
+Resources:
+  SampleS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref S3BucketName
+    DeletionPolicy: Delete
+
+  # The Custom Resource invoking the Lambda Function
+  S3CustomResource:
+    Type: Custom::S3CustomResource
+    Properties:
+      ServiceToken: !GetAtt AWSLambdaFunction.Arn
+      bucket_name: !Ref SampleS3Bucket
+
+  AWSLambdaFunction:
+     Type: AWS::Lambda::Function
+     Properties:
+       FunctionName: !Sub '${AWS::StackName}-${AWS::Region}-lambda'
+       Handler: index.handler
+       Role: !GetAtt AWSLambdaExecutionRole.Arn
+       Timeout: 360
+       Runtime: python3.12
+       Code:
+         ZipFile: |
+          import boto3
+          import cfnresponse
+
+          def handler(event, context):
+              the_event = event['RequestType']        
+              response_data = {}
+              bucket_name = event['ResourceProperties']['bucket_name']
+              
+              try:
+                  if the_event == 'Delete':
+                      b_operator = boto3.resource('s3')
+                      b_operator.Bucket(str(bucket_name)).objects.all().delete()
+                  
+                  cfnresponse.send(event, context, cfnresponse.SUCCESS, response_data)
+              except Exception as e:
+                  response_data['Data'] = str(e)
+                  cfnresponse.send(event, context, cfnresponse.FAILED, response_data)
+
+  AWSLambdaExecutionRole:
+     Type: AWS::IAM::Role
+     Properties:
+       AssumeRolePolicyDocument:
+         Statement:
+         - Action: sts:AssumeRole
+           Effect: Allow
+           Principal:
+             Service: lambda.amazonaws.com
+       Policies:
+       - PolicyName: !Sub ${AWS::StackName}-S3-CW
+         PolicyDocument:
+           Statement:
+           - Action:
+             - logs:CreateLogGroup
+             - logs:CreateLogStream
+             - logs:PutLogEvents
+             - s3:PutObject
+             - s3:DeleteObject
+             - s3:List*
+             Effect: Allow
+             Resource: "*"
+```
+
 ## Exam Tips
 - **StackUpdates:** When you update a stack, understand the interruption behavior of the resources (e.g., `No Interruption`, `Some Interruption`, or `Replacement`). 
 - **Change Sets:** Always use Change Sets to preview how proposed changes to a stack might impact your running resources before applying them.
