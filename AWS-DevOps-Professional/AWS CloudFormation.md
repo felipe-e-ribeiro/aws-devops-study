@@ -245,6 +245,85 @@ Resources:
 ```
 *(Note: As an alternative to `resolve:secretsmanager`, you can set `ManageMasterUserPassword: true` directly on `AWS::RDS::DBCluster` or `AWS::RDS::DBInstance` to have RDS auto-create and manage the secret for you.)*
 
+### Helper Scripts (cfn-init, cfn-signal, cfn-hup)
+
+Helper scripts are installed on Amazon EC2 instances to fetch and parse CloudFormation metadata, install packages, write files, and start services.
+
+- **cfn-init**: Retrieves and interprets resource metadata, installs packages, creates files, and starts services based on the `AWS::CloudFormation::Init` configuration in the resource's `Metadata` section. This is a powerful, declarative alternative to using complex `UserData` bash scripts.
+- **cfn-signal**: Used to send a signal with a `CreationPolicy` or `WaitCondition`, indicating whether the EC2 instance has been successfully created or updated. If `cfn-init` succeeds or fails, `cfn-signal` reports the result back to CloudFormation.
+- **cfn-hup**: A daemon that runs on the instance to detect changes in resource metadata and run user-specified actions when a change is detected. This allows configuration updates to running instances without replacing them.
+
+*Example Use Case:* An EC2 instance using `cfn-init` to install Apache, `cfn-hup` to watch for configuration changes, and `cfn-signal` to notify CloudFormation of success.
+
+```yaml
+Resources:
+  MyInstance:
+    Type: 'AWS::EC2::Instance'
+    CreationPolicy:
+      ResourceSignal:
+        Timeout: PT5M
+        Count: 1
+    Metadata:
+      AWS::CloudFormation::Init:
+        config:
+          packages:
+            yum:
+              httpd: []
+          files:
+            /etc/httpd/conf.d/vhost.conf:
+              mode: '000644'
+              owner: root
+              group: root
+              content: !Sub |
+                <VirtualHost *:80>
+                  DocumentRoot /var/www/html
+                  <Directory /var/www/html>
+                    Options Indexes FollowSymLinks
+                    AllowOverride None
+                    Require all granted
+                  </Directory>
+                </VirtualHost>
+          services:
+            sysvinit:
+              httpd:
+                enabled: "true"
+                ensureRunning: "true"
+    Properties:
+      InstanceType: t3.micro
+      ImageId: ami-0c02fb55956c7d316 
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash -xe
+          # Install helper scripts if necessary
+          yum update -y
+          yum install -y aws-cfn-bootstrap
+
+          # Execute cfn-init
+          /opt/aws/bin/cfn-init -v \
+            --stack ${AWS::StackId} \
+            --resource MyInstance \
+            --region ${AWS::Region}
+            
+          # Start cfn-hup daemon
+          /opt/aws/bin/cfn-hup -v \
+            --stack ${AWS::StackId} \
+            --resource MyInstance \
+            --region ${AWS::Region}
+            
+          # Capture the status of the cfn-init execution (0 if successful)
+          RESULT=$?
+
+          # Send the success or failure signal based on the RESULT
+          /opt/aws/bin/cfn-signal -e $RESULT \
+            --stack ${AWS::StackId} \
+            --resource MyInstance \
+            --region ${AWS::Region}
+```
+
+### DependsOn Attribute
+
+With the `DependsOn` attribute you can specify that the creation of a specific resource follows another. When you add a `DependsOn` attribute to a resource, that resource is created only after the creation of the resource specified in the `DependsOn` attribute. CloudFormation automatically manages implicit dependencies (e.g., when a resource uses `!Ref` to point to another), but `DependsOn` is necessary for explicit dependencies that CloudFormation cannot automatically infer (e.g., an application depending on a newly created IAM role or database).
+
 ## Exam Tips
 - **StackUpdates:** When you update a stack, understand the interruption behavior of the resources (e.g., `No Interruption`, `Some Interruption`, or `Replacement`). 
 - **Change Sets:** Always use Change Sets to preview how proposed changes to a stack might impact your running resources before applying them.
