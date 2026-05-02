@@ -42,14 +42,14 @@ There are two distinct tier types:
 
 **Table 2: Comparison of Deployment Methods**
 
-| **Method** | **Impact of failed deployment** | **Deploy time** | **Zero downtime** | **No DNS change** | **Rollback process** | **Code deployed to** |
-| --- | --- | --- | --- | --- | --- | --- |
-| **All at once** | Downtime | ⏱️ (Fast) | ❌ No | ✅ Yes | Manual redeploy | Existing instances |
-| **Rolling** | Single batch out of service; successful batches before failure run the new version | ⏱️⏱️ (Moderate)† | ✅ Yes | ✅ Yes | Manual redeploy | Existing instances |
-| **Rolling with an additional batch** | Minimal if the 1st batch fails; otherwise, similar to Rolling | ⏱️⏱️⏱️ (Slower)† | ✅ Yes | ✅ Yes | Manual redeploy | New and existing instances |
-| **Immutable** | Minimal | ⏱️⏱️⏱️⏱️ (Slowest) | ✅ Yes | ✅ Yes | Terminate new instances | New instances |
-| **Traffic splitting** | Percentage of traffic routed to the new version is temporarily impacted | ⏱️⏱️⏱️⏱️ (Slowest)†† | ✅ Yes | ✅ Yes | Reroute traffic and terminate new instances | New instances |
-| **Blue/green** | Minimal | ⏱️⏱️⏱️⏱️ (Slowest) | ✅ Yes | ❌ No | Swap URL/CNAME ([[Amazon Route 53]]) | New instances |
+| **Method**                           | **Impact of failed deployment**                                                    | **Deploy time**      | **Zero downtime** | **No DNS change** | **Rollback process**                        | **Code deployed to**       |
+| ------------------------------------ | ---------------------------------------------------------------------------------- | -------------------- | ----------------- | ----------------- | ------------------------------------------- | -------------------------- |
+| **All at once**                      | Downtime                                                                           | ⏱️ (Fast)            | ❌ No              | ✅ Yes             | Manual redeploy                             | Existing instances         |
+| **Rolling**                          | Single batch out of service; successful batches before failure run the new version | ⏱️⏱️ ⏱️(Slower)†     | ✅ Yes             | ✅ Yes             | Manual redeploy                             | Existing instances         |
+| **Rolling with an additional batch** | Minimal if the 1st batch fails; otherwise, similar to Rolling                      | ⏱️⏱️⏱️ (Slower)†     | ✅ Yes             | ✅ Yes             | Manual redeploy                             | New and existing instances |
+| **Immutable**                        | Minimal                                                                            | ⏱️⏱️⏱️⏱️ (Slowest)   | ✅ Yes             | ✅ Yes             | Terminate new instances                     | New instances              |
+| **Traffic splitting**                | Percentage of traffic routed to the new version is temporarily impacted            | ⏱️⏱️⏱️⏱️ (Slowest)†† | ✅ Yes             | ✅ Yes             | Reroute traffic and terminate new instances | New instances              |
+| **Blue/green**                       | Minimal                                                                            | ⏱️⏱️⏱️⏱️ (Slowest)   | ✅ Yes             | ❌ No              | Swap URL/CNAME ([[Amazon Route 53]])        | New instances              |
 
 *† Deployment time varies depending on the configured batch size.*
 *†† Deployment time varies depending on the configured traffic evaluation time.*
