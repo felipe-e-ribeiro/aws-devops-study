@@ -11,7 +11,7 @@ The wiki is designed to be browsed using [Obsidian](https://obsidian.md/), lever
   - `/support-recources-aws`: A directory containing "stub" files for AWS services that are referenced in the main notes but haven't been fully documented yet.
   - `update.md`: A transient file used to draft new notes. An automated workflow processes this file, translates the content to technical English, and distributes it to the appropriate markdown files.
 
-## 🚀 Workflow
+## 🚀 AI Agent Workflow
 
 1. Draft notes are written in Portuguese inside the `update.md` file.
 2. An automated agent (`wiki-manager`) parses the `update.md` file.
